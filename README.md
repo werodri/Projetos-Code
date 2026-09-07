@@ -8,10 +8,13 @@ melhor dia para comprar.
 
 - **Next.js 15** (App Router) + **React 19** + **TypeScript**
 - **Tailwind CSS** para a interface
-- **SQLite** embutido no Node.js (`node:sqlite`) — nenhum serviço externo
-  para instalar; o banco fica em `data/cartoes.db`
+- **SQLite / libSQL** via `@libsql/client` — roda com um arquivo local
+  (`data/cartoes.db`) quando você não configura nada, ou com um banco na
+  nuvem (ex: [Turso](https://turso.tech)) quando você define as variáveis
+  de ambiente `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN`. O mesmo código
+  funciona nos dois casos.
 
-## Como rodar
+## Como rodar no seu computador
 
 ```bash
 npm install
@@ -26,6 +29,43 @@ Para rodar em modo produção local:
 npm run build
 npm run start
 ```
+
+## Como acessar pelo celular (publicando de verdade na internet)
+
+Para usar o app no celular de qualquer lugar (com link fixo, HTTPS e
+lançamento por voz funcionando), publique com **Vercel** (hospeda o
+Next.js) + **Turso** (banco de dados, compatível com SQLite). Os dois
+têm plano gratuito.
+
+### 1. Criar o banco no Turso
+
+```bash
+# instala a CLI do Turso (uma vez só)
+curl -sSfL https://get.tur.so/install.sh | bash
+
+turso auth login
+turso db create meus-cartoes
+turso db show meus-cartoes --url        # copie esse valor (TURSO_DATABASE_URL)
+turso db tokens create meus-cartoes      # copie o token gerado (TURSO_AUTH_TOKEN)
+```
+
+(Também dá para criar pelo painel web em https://turso.tech, sem usar a CLI.)
+
+### 2. Publicar na Vercel
+
+1. Acesse https://vercel.com, crie uma conta e clique em **Add New → Project**.
+2. Importe o repositório `werodri/Projetos-Code` e selecione a branch
+   com o código do app.
+3. Em **Environment Variables**, adicione:
+   - `TURSO_DATABASE_URL` → o valor copiado no passo anterior
+   - `TURSO_AUTH_TOKEN` → o token copiado no passo anterior
+4. Clique em **Deploy**. Ao terminar, a Vercel te dá uma URL do tipo
+   `https://meus-cartoes.vercel.app`.
+5. Abra essa URL no navegador do celular (Chrome) — pode até "Adicionar
+   à tela inicial" para abrir como se fosse um app instalado.
+
+A partir daí, toda vez que uma nova versão for enviada para essa branch,
+a Vercel publica automaticamente.
 
 ## Funcionalidades
 

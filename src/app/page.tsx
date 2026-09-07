@@ -4,8 +4,8 @@ import { formatarMoeda, formatarData } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default function Dashboard() {
-  const resumos = listarCartoesComFatura();
+export default async function Dashboard() {
+  const resumos = await listarCartoesComFatura();
   const cartoes = resumos.map((r) => r.cartao);
 
   if (cartoes.length === 0) {

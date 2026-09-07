@@ -1,23 +1,34 @@
-import { DatabaseSync } from "node:sqlite";
+import { createClient, type Client } from "@libsql/client";
 import path from "node:path";
 import fs from "node:fs";
 
-const dataDir = path.join(process.cwd(), "data");
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-const dbPath = path.join(dataDir, "cartoes.db");
-
 declare global {
   // eslint-disable-next-line no-var
-  var __cartoesDb: DatabaseSync | undefined;
+  var __cartoesDb: Client | undefined;
+  // eslint-disable-next-line no-var
+  var __cartoesDbReady: Promise<void> | undefined;
 }
 
-function createDb(): DatabaseSync {
-  const db = new DatabaseSync(dbPath);
-  db.exec("PRAGMA journal_mode = WAL;");
-  db.exec(`
+function resolveUrl(): string {
+  if (process.env.TURSO_DATABASE_URL) {
+    return process.env.TURSO_DATABASE_URL;
+  }
+  const dataDir = path.join(process.cwd(), "data");
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  return `file:${path.join(dataDir, "cartoes.db")}`;
+}
+
+function createDb(): Client {
+  return createClient({
+    url: resolveUrl(),
+    authToken: process.env.TURSO_AUTH_TOKEN,
+  });
+}
+
+async function ensureSchema(db: Client) {
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS cartoes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nome TEXT NOT NULL,
@@ -30,7 +41,7 @@ function createDb(): DatabaseSync {
       criado_em TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS compras (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       cartao_id INTEGER NOT NULL REFERENCES cartoes(id) ON DELETE CASCADE,
@@ -43,15 +54,16 @@ function createDb(): DatabaseSync {
       criado_em TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_compras_cartao ON compras(cartao_id);`
-  );
-  return db;
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_compras_cartao ON compras(cartao_id);`);
 }
 
-export function getDb(): DatabaseSync {
+export async function getDb(): Promise<Client> {
   if (!globalThis.__cartoesDb) {
     globalThis.__cartoesDb = createDb();
   }
+  if (!globalThis.__cartoesDbReady) {
+    globalThis.__cartoesDbReady = ensureSchema(globalThis.__cartoesDb);
+  }
+  await globalThis.__cartoesDbReady;
   return globalThis.__cartoesDb;
 }

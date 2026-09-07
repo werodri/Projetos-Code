@@ -12,16 +12,20 @@ export default async function CartaoDetalhePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const db = getDb();
-  const row = db.prepare("SELECT * FROM cartoes WHERE id = ?").get(Number(id));
-  if (!row) {
+  const db = await getDb();
+  const cartaoRes = await db.execute({
+    sql: "SELECT * FROM cartoes WHERE id = ?",
+    args: [Number(id)],
+  });
+  if (cartaoRes.rows.length === 0) {
     notFound();
   }
-  const cartao = rowToCartao(row);
-  const compras = db
-    .prepare("SELECT * FROM compras WHERE cartao_id = ? ORDER BY data DESC, id DESC")
-    .all(cartao.id)
-    .map(rowToCompra);
+  const cartao = rowToCartao(cartaoRes.rows[0]);
+  const comprasRes = await db.execute({
+    sql: "SELECT * FROM compras WHERE cartao_id = ? ORDER BY data DESC, id DESC",
+    args: [cartao.id],
+  });
+  const compras = comprasRes.rows.map(rowToCompra);
   const fatura = calcularFatura(cartao, compras);
 
   return <CartaoDetalhe cartao={cartao} compras={compras} fatura={fatura} />;

@@ -3,8 +3,8 @@ import CartoesGrid from "@/components/CartoesGrid";
 
 export const dynamic = "force-dynamic";
 
-export default function CartoesPage() {
-  const resumos = listarCartoesComFatura();
+export default async function CartoesPage() {
+  const resumos = await listarCartoesComFatura();
 
   return (
     <div>

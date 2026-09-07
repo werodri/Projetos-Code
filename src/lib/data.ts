@@ -4,13 +4,13 @@ import { Cartao, Compra, FaturaResumo } from "./types";
 
 export function rowToCartao(row: any): Cartao {
   return {
-    id: row.id,
+    id: Number(row.id),
     nome: row.nome,
     bandeira: row.bandeira,
     final: row.final,
-    limite: row.limite,
-    diaFechamento: row.dia_fechamento,
-    diaVencimento: row.dia_vencimento,
+    limite: Number(row.limite),
+    diaFechamento: Number(row.dia_fechamento),
+    diaVencimento: Number(row.dia_vencimento),
     cor: row.cor,
     criadoEm: row.criado_em,
   };
@@ -18,12 +18,12 @@ export function rowToCartao(row: any): Cartao {
 
 export function rowToCompra(row: any): Compra {
   return {
-    id: row.id,
-    cartaoId: row.cartao_id,
+    id: Number(row.id),
+    cartaoId: Number(row.cartao_id),
     descricao: row.descricao,
     categoria: row.categoria,
-    valorTotal: row.valor_total,
-    parcelas: row.parcelas,
+    valorTotal: Number(row.valor_total),
+    parcelas: Number(row.parcelas),
     data: row.data,
     fonte: row.fonte,
     criadoEm: row.criado_em,
@@ -36,13 +36,14 @@ export interface CartaoComFatura {
   fatura: FaturaResumo;
 }
 
-export function listarCartoesComFatura(): CartaoComFatura[] {
-  const db = getDb();
-  const cartoes = db
-    .prepare("SELECT * FROM cartoes ORDER BY nome COLLATE NOCASE ASC")
-    .all()
-    .map(rowToCartao);
-  const todasCompras = db.prepare("SELECT * FROM compras").all().map(rowToCompra);
+export async function listarCartoesComFatura(): Promise<CartaoComFatura[]> {
+  const db = await getDb();
+  const cartoesRes = await db.execute(
+    "SELECT * FROM cartoes ORDER BY nome COLLATE NOCASE ASC"
+  );
+  const cartoes = cartoesRes.rows.map(rowToCartao);
+  const comprasRes = await db.execute("SELECT * FROM compras");
+  const todasCompras = comprasRes.rows.map(rowToCompra);
 
   return cartoes.map((cartao) => {
     const compras = todasCompras.filter((c) => c.cartaoId === cartao.id);

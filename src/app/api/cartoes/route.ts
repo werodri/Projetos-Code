@@ -1,27 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { Cartao } from "@/lib/types";
-
-function rowToCartao(row: any): Cartao {
-  return {
-    id: row.id,
-    nome: row.nome,
-    bandeira: row.bandeira,
-    final: row.final,
-    limite: row.limite,
-    diaFechamento: row.dia_fechamento,
-    diaVencimento: row.dia_vencimento,
-    cor: row.cor,
-    criadoEm: row.criado_em,
-  };
-}
+import { rowToCartao } from "@/lib/data";
 
 export async function GET() {
-  const db = getDb();
-  const rows = db
-    .prepare("SELECT * FROM cartoes ORDER BY nome COLLATE NOCASE ASC")
-    .all();
-  return NextResponse.json(rows.map(rowToCartao));
+  const db = await getDb();
+  const result = await db.execute(
+    "SELECT * FROM cartoes ORDER BY nome COLLATE NOCASE ASC"
+  );
+  return NextResponse.json(result.rows.map(rowToCartao));
 }
 
 export async function POST(req: NextRequest) {
@@ -44,24 +30,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: "Dia de vencimento inválido (1-31)." }, { status: 400 });
   }
 
-  const db = getDb();
-  const result = db
-    .prepare(
-      `INSERT INTO cartoes (nome, bandeira, final, limite, dia_fechamento, dia_vencimento, cor)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
+  const db = await getDb();
+  const result = await db.execute({
+    sql: `INSERT INTO cartoes (nome, bandeira, final, limite, dia_fechamento, dia_vencimento, cor)
+          VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+    args: [
       nome.trim(),
       bandeira?.trim() || null,
       final?.trim() || null,
       limiteNum,
       fechamentoNum,
       vencimentoNum,
-      cor || "#6366f1"
-    );
+      cor || "#6366f1",
+    ],
+  });
 
-  const novo = db
-    .prepare("SELECT * FROM cartoes WHERE id = ?")
-    .get(result.lastInsertRowid);
-  return NextResponse.json(rowToCartao(novo), { status: 201 });
+  return NextResponse.json(rowToCartao(result.rows[0]), { status: 201 });
 }

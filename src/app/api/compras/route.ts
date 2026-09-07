@@ -1,30 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { Compra, FonteCompra } from "@/lib/types";
-
-function rowToCompra(row: any): Compra {
-  return {
-    id: row.id,
-    cartaoId: row.cartao_id,
-    descricao: row.descricao,
-    categoria: row.categoria,
-    valorTotal: row.valor_total,
-    parcelas: row.parcelas,
-    data: row.data,
-    fonte: row.fonte as FonteCompra,
-    criadoEm: row.criado_em,
-  };
-}
+import { rowToCompra } from "@/lib/data";
+import { FonteCompra } from "@/lib/types";
 
 export async function GET(req: NextRequest) {
   const cartaoId = req.nextUrl.searchParams.get("cartaoId");
-  const db = getDb();
-  const rows = cartaoId
-    ? db
-        .prepare("SELECT * FROM compras WHERE cartao_id = ? ORDER BY data DESC, id DESC")
-        .all(Number(cartaoId))
-    : db.prepare("SELECT * FROM compras ORDER BY data DESC, id DESC").all();
-  return NextResponse.json(rows.map(rowToCompra));
+  const db = await getDb();
+  const result = cartaoId
+    ? await db.execute({
+        sql: "SELECT * FROM compras WHERE cartao_id = ? ORDER BY data DESC, id DESC",
+        args: [Number(cartaoId)],
+      })
+    : await db.execute("SELECT * FROM compras ORDER BY data DESC, id DESC");
+  return NextResponse.json(result.rows.map(rowToCompra));
 }
 
 export async function POST(req: NextRequest) {
@@ -51,21 +39,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: "Data inválida." }, { status: 400 });
   }
 
-  const db = getDb();
-  const cartao = db.prepare("SELECT id FROM cartoes WHERE id = ?").get(cartaoIdNum);
-  if (!cartao) {
+  const db = await getDb();
+  const cartaoRes = await db.execute({
+    sql: "SELECT id FROM cartoes WHERE id = ?",
+    args: [cartaoIdNum],
+  });
+  if (cartaoRes.rows.length === 0) {
     return NextResponse.json({ erro: "Cartão não encontrado." }, { status: 404 });
   }
 
   const fonteValida: FonteCompra = ["manual", "foto", "voz"].includes(fonte) ? fonte : "manual";
 
-  const result = db
-    .prepare(
-      `INSERT INTO compras (cartao_id, descricao, categoria, valor_total, parcelas, data, fonte)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(cartaoIdNum, descricao.trim(), categoria?.trim() || null, valorNum, parcelasNum, data, fonteValida);
+  const result = await db.execute({
+    sql: `INSERT INTO compras (cartao_id, descricao, categoria, valor_total, parcelas, data, fonte)
+          VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+    args: [
+      cartaoIdNum,
+      descricao.trim(),
+      categoria?.trim() || null,
+      valorNum,
+      parcelasNum,
+      data,
+      fonteValida,
+    ],
+  });
 
-  const nova = db.prepare("SELECT * FROM compras WHERE id = ?").get(result.lastInsertRowid);
-  return NextResponse.json(rowToCompra(nova), { status: 201 });
+  return NextResponse.json(rowToCompra(result.rows[0]), { status: 201 });
 }
